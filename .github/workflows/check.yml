@@ -1,0 +1,44 @@
+name: Checar lotes Lei do Bem
+
+on:
+  schedule:
+    - cron: "0 * * * *"      # toda hora (horario UTC)
+  workflow_dispatch: {}        # permite rodar manualmente pelo botao "Run workflow"
+
+permissions:
+  contents: write              # para commitar state.json
+
+concurrency:
+  group: checar-lotes
+  cancel-in-progress: false
+
+jobs:
+  checar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Rodar verificacao
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python check.py
+
+      - name: Commitar estado se mudou
+        run: |
+          git add state.json
+          if git diff --cached --quiet; then
+            echo "state.json inalterado"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: atualizar estado dos lotes"
+            git push
+          fi
