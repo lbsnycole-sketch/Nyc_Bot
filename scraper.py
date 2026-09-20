@@ -6,6 +6,8 @@ LOTES_URL = "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/paginas/l
 
 _LOTE_RE = re.compile(r"\blote\b", re.I)
 _DATE_RE = re.compile(r"\b(\d{2}/\d{2}/\d{4})\b")
+_NUM_RE = re.compile(r"(\d+)\s*[º°]\s*lote\b", re.I)
+_ANO_RE = re.compile(r"\b(20\d{2})\b")
 
 
 def fetch_html(url=LOTES_URL, timeout=30):
@@ -34,5 +36,16 @@ def parse_lotes(html):
         a = tr.find("a", href=True)
         url = a["href"] if a else None
         chave = url or f"{titulo}|{data}"
-        lotes.append({"titulo": titulo, "data": data, "url": url, "chave": chave})
+        m_num = _NUM_RE.search(titulo)
+        numero = m_num.group(1) if m_num else None
+        m_ano = _ANO_RE.search(titulo)
+        ano = m_ano.group(1) if m_ano else None
+        lotes.append({
+            "titulo": titulo,
+            "data": data,
+            "url": url,
+            "chave": chave,
+            "numero": numero,
+            "ano": ano,
+        })
     return lotes

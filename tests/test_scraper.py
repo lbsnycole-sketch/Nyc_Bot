@@ -32,6 +32,14 @@ def test_primeiro_lote_esperado():
     assert "14º lote do Parecer Técnico" in primeiro["titulo"]
     assert primeiro["url"].endswith("publicacao-14-lote-parecer-tecnico-2024.pdf")
     assert primeiro["chave"] == primeiro["url"]
+    assert primeiro["numero"] == "14"
+    assert primeiro["ano"] == "2024"
+
+
+def test_lotes_tem_campos_numero_ano():
+    for l in _lotes():
+        assert "numero" in l
+        assert "ano" in l
 
 
 def test_fetch_html_usa_get_e_devolve_texto():
