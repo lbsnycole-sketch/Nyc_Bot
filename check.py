@@ -14,7 +14,7 @@ from notifier import (
 )
 
 STATE_PATH = Path(__file__).parent / "state.json"
-_HEARTBEAT_DAYS = 30
+_HEARTBEAT_DAYS = 7
 _SEMANAL_DAYS = 7
 
 

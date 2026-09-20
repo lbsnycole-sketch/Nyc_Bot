@@ -186,7 +186,7 @@ def test_sem_credenciais_com_novos_retorna_1(tmp_path, monkeypatch):
 
 def test_heartbeat_enviado_apos_30_dias(tmp_path, monkeypatch):
     state = tmp_path / "state.json"
-    ts_antigo = (datetime.now(timezone.utc) - timedelta(days=31)).isoformat()
+    ts_antigo = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
     save_state(state, _make_state({"a"}, ultima_notificacao=ts_antigo,
                                    ultima_notificacao_data="01/07/2026",
                                    total_notificados=3))
@@ -205,7 +205,7 @@ def test_heartbeat_enviado_apos_30_dias(tmp_path, monkeypatch):
 
 def test_heartbeat_nao_enviado_antes_de_30_dias(tmp_path, monkeypatch):
     state = tmp_path / "state.json"
-    ts_recente = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+    ts_recente = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
     save_state(state, _make_state({"a"}, ultima_notificacao=ts_recente))
     monkeypatch.setattr(checkmod, "STATE_PATH", state)
     monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")

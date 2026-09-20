@@ -30,7 +30,7 @@ def format_heartbeat_message(ultima_notificacao_data, total_notificados):
     data = _esc(ultima_notificacao_data) if ultima_notificacao_data else "—"
     return (
         f"✅ <b>Bot ativo — Lei do Bem</b>\n"
-        f"Sem novos lotes nos últimos 30 dias.\n"
+        f"Sem novos lotes nos últimos 7 dias.\n"
         f"Última notificação: {data} · Total: {total_notificados} lotes"
     )
 
