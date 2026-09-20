@@ -55,3 +55,4 @@ TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=@canal .venv/bin/python check.py
 ## Ajustar a frequência
 No arquivo `.github/workflows/check.yml`, mude a linha `cron`. Ex.: `"0 */6 * * *"`
 = a cada 6 horas. (Horário em UTC; o cron do GitHub pode atrasar alguns minutos.)
+# Nyc_Bot
