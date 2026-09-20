@@ -1,4 +1,4 @@
-# Aviso de Lotes — Lei do Bem (Telegram)
+# Aviso de Lotes — Lei do Bem (Telegram) 🤖
 
 Bot que avisa num canal do Telegram sempre que um **lote novo** é publicado na
 página de lotes da Lei do Bem do MCTI. Roda sozinho no GitHub Actions, de hora
