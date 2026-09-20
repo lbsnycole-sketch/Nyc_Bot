@@ -1,10 +1,21 @@
 import re
+import requests
 from bs4 import BeautifulSoup
 
 LOTES_URL = "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/paginas/lotes"
 
 _LOTE_RE = re.compile(r"\blote\b", re.I)
 _DATE_RE = re.compile(r"\b(\d{2}/\d{2}/\d{4})\b")
+
+
+def fetch_html(url=LOTES_URL, timeout=30):
+    resp = requests.get(
+        url,
+        headers={"User-Agent": "Mozilla/5.0 (LeiDoBemBot)"},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return resp.text
 
 
 def parse_lotes(html):
