@@ -8,6 +8,7 @@ _LOTE_RE = re.compile(r"\blote\b", re.I)
 _DATE_RE = re.compile(r"\b(\d{2}/\d{2}/\d{4})\b")
 _NUM_RE = re.compile(r"(\d+)\s*[º°]\s*lote\b", re.I)
 _ANO_RE = re.compile(r"\b(20\d{2})\b")
+_TIPO_RE = re.compile(r"lote\s+d[eo]\s+(.+?)\s*[-–—]\s*ano[\s-]?base", re.I)
 
 
 def fetch_html(url=LOTES_URL, timeout=30):
@@ -40,6 +41,8 @@ def parse_lotes(html):
         numero = m_num.group(1) if m_num else None
         m_ano = _ANO_RE.search(titulo)
         ano = m_ano.group(1) if m_ano else None
+        m_tipo = _TIPO_RE.search(titulo)
+        tipo = m_tipo.group(1).strip() if m_tipo else None
         lotes.append({
             "titulo": titulo,
             "data": data,
@@ -47,5 +50,6 @@ def parse_lotes(html):
             "chave": chave,
             "numero": numero,
             "ano": ano,
+            "tipo": tipo,
         })
     return lotes

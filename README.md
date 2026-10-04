@@ -52,6 +52,19 @@ python3 -m venv .venv
 TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=@canal .venv/bin/python check.py
 ```
 
+## Aparência das mensagens
+
+As notificações seguem um padrão visual único (cabeçalho → dados estruturados →
+assinatura `Monitor Lei do Bem`), com datas em **horário de Brasília**. Cada lote
+novo traz os botões **Abrir PDF** e **Página oficial**. A marca/assinatura é
+configurável na constante `PRODUTO` em `notifier.py`.
+
+O **resumo semanal** inclui um gráfico "lotes por ano-base" gerado com
+`matplotlib` **dentro do próprio GitHub Actions** (nuvem, grátis, sem PC ligado).
+A dependência é instalada só no job semanal (`weekly.yml`); o job horário não
+precisa dela. Se o gráfico falhar por qualquer motivo, o resumo é enviado só em
+texto (nunca quebra).
+
 ## Resiliência (contra "bot cego")
 
 O bot se protege de falhar em silêncio quando a página oficial muda ou sai do ar:

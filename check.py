@@ -1,12 +1,15 @@
+import io
 import json
 import os
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from scraper import fetch_html, parse_lotes, LOTES_URL
 from notifier import (
     send_telegram,
+    send_telegram_photo,
     format_lote_message,
     format_heartbeat_message,
     format_remocao_message,
@@ -14,6 +17,8 @@ from notifier import (
     format_alerta_pagina,
     format_pagina_normalizada,
 )
+
+_TZ_BR = ZoneInfo("America/Sao_Paulo")
 
 STATE_PATH = Path(__file__).parent / "state.json"
 _HEARTBEAT_DAYS = 7
@@ -92,7 +97,45 @@ def _parse_iso(ts):
 
 def _fmt_data_hora(iso):
     dt = _parse_iso(iso)
-    return dt.strftime("%d/%m/%Y %H:%M UTC") if dt else "—"
+    if not dt:
+        return "—"
+    return dt.astimezone(_TZ_BR).strftime("%d/%m/%Y %H:%M") + " (horário de Brasília)"
+
+
+def _gerar_grafico_por_ano(lotes):
+    # Barras "lotes por ano-base". matplotlib e importado aqui (lazy) para o job
+    # horario nao precisar da dependencia; ela so e instalada no job semanal.
+    from collections import Counter
+
+    contagem = Counter(l["ano"] for l in lotes if l.get("ano"))
+    if not contagem:
+        return None
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    azul = "#00338D"
+    anos = sorted(contagem)
+    valores = [contagem[a] for a in anos]
+    fig, ax = plt.subplots(figsize=(6.4, 3.4), dpi=150)
+    barras = ax.bar(anos, valores, color=azul, width=0.6)
+    ax.set_title("Lotes por ano-base — Lei do Bem",
+                 fontsize=13, fontweight="bold", color="#1a1a1a", pad=12)
+    ax.tick_params(axis="x", labelsize=10, colors="#555", length=0)
+    ax.set_yticks([])
+    for lado in ("top", "right", "left"):
+        ax.spines[lado].set_visible(False)
+    ax.spines["bottom"].set_color("#cccccc")
+    ax.margins(y=0.18)
+    for b, v in zip(barras, valores):
+        ax.text(b.get_x() + b.get_width() / 2, v, str(v),
+                ha="center", va="bottom", fontsize=10, fontweight="bold", color=azul)
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    return buf.getvalue()
 
 
 def _scrape_confiavel(lotes, state):
@@ -227,14 +270,15 @@ def main():
 
     for lote in novos:
         try:
-            contador = state["total_notificados"] + len(notificados_chaves) + 1
-            msg = format_lote_message(
-                lote,
-                total_notificados=contador,
-                ultima_notificacao_data=ultima_data_ref,
+            lotes_no_ano = sum(
+                1 for l in lotes if l.get("ano") and l.get("ano") == lote.get("ano")
             )
-            btn = ("Ver lote 🔗", lote["url"]) if lote.get("url") else None
-            send_telegram(token, chat_id, msg, url_button=btn)
+            msg = format_lote_message(lote, acompanhados=lotes_no_ano)
+            botoes = []
+            if lote.get("url"):
+                botoes.append(("Abrir PDF 🔗", lote["url"]))
+            botoes.append(("Página oficial", LOTES_URL))
+            send_telegram(token, chat_id, msg, buttons=botoes)
             notificados_chaves.add(lote["chave"])
             ultima_data_ref = lote.get("data")
             state["historico"].append({
@@ -300,10 +344,22 @@ def resumo_semanal():
         h for h in state["historico"]
         if (dt := _parse_iso(h.get("notificado_em"))) and dt >= corte
     ]
-    msg = format_resumo_semanal(lotes_semana, state["total_notificados"])
+    caption = format_resumo_semanal(lotes_semana, state["total_notificados"])
+
+    # Gráfico "lotes por ano-base" a partir da lista atual da página.
+    grafico = None
     try:
-        send_telegram(token, chat_id, msg)
-        print(f"[resumo] enviado com {len(lotes_semana)} lote(s) da semana.")
+        grafico = _gerar_grafico_por_ano(parse_lotes(fetch_html()))
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] falha ao gerar grafico; enviando so texto: {e}")
+
+    try:
+        if grafico:
+            send_telegram_photo(token, chat_id, grafico, caption=caption)
+            print(f"[resumo] enviado com grafico ({len(lotes_semana)} lote(s) da semana).")
+        else:
+            send_telegram(token, chat_id, caption)
+            print(f"[resumo] enviado em texto ({len(lotes_semana)} lote(s) da semana).")
     except Exception as e:  # noqa: BLE001
         print(f"[erro] falha ao enviar resumo: {e}")
         return 1

@@ -42,6 +42,24 @@ def test_lotes_tem_campos_numero_ano():
         assert "ano" in l
 
 
+def test_extrai_tipo_simples():
+    primeiro = _lotes()[0]
+    assert primeiro["tipo"] == "Parecer Técnico"
+
+
+def test_extrai_tipo_com_parenteses():
+    lotes = _lotes()
+    rec = next(l for l in lotes if "recurso administrativo" in l["titulo"].lower())
+    assert rec["tipo"] == "Parecer Técnico (recurso administrativo)"
+
+
+def test_tipo_none_quando_formato_desconhecido():
+    from scraper import parse_lotes
+    html = "<table><tr><td>Lote avulso sem padrão</td></tr></table>"
+    lotes = parse_lotes(html)
+    assert lotes and lotes[0]["tipo"] is None
+
+
 def test_fetch_html_usa_get_e_devolve_texto():
     fake = MagicMock()
     fake.text = "<html>ok</html>"

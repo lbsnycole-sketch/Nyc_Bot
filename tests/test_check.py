@@ -16,7 +16,7 @@ def _make_state(chaves, **extra):
 def _fake_lotes(chaves):
     return [
         {"titulo": f"lote {c}", "data": "01/01/2026", "url": c,
-         "chave": c, "numero": None, "ano": None}
+         "chave": c, "numero": None, "ano": None, "tipo": None}
         for c in chaves
     ]
 
@@ -122,24 +122,34 @@ def test_notifica_com_contador_e_historico(tmp_path, monkeypatch):
     s = checkmod.load_state(state)
     assert s["total_notificados"] == 2
     assert len(s["historico"]) == 1
-    assert "2º notificado" in enviados[0]
+    assert "Monitor Lei do Bem" in enviados[0]
     assert "01/01/2026" in enviados[0]
 
 
-def test_botao_url_enviado_quando_ha_link(tmp_path, monkeypatch):
+def test_botoes_pdf_e_pagina_oficial(tmp_path, monkeypatch):
     state = tmp_path / "state.json"
     save_state(state, _make_state({"a"}))
     monkeypatch.setattr(checkmod, "STATE_PATH", state)
     monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
     monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["a", "b"]))
-    botoes = []
+    capturados = []
     monkeypatch.setattr(checkmod, "send_telegram",
-                        lambda tok, cid, txt, url_button=None, **k: botoes.append(url_button))
+                        lambda tok, cid, txt, buttons=None, **k: capturados.append(buttons))
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
     checkmod.main()
-    assert botoes[0] is not None
-    assert botoes[0][1] == "b"
+    assert capturados[0] is not None
+    hrefs = [b[1] for b in capturados[0]]
+    labels = [b[0] for b in capturados[0]]
+    assert "b" in hrefs  # link do PDF do lote
+    assert any("oficial" in l.lower() for l in labels)
+
+
+def test_fmt_data_hora_em_horario_de_brasilia(tmp_path):
+    # 12:00 UTC -> 09:00 em Brasília (UTC-3)
+    out = checkmod._fmt_data_hora("2026-10-04T12:00:00+00:00")
+    assert "09:00" in out
+    assert "Brasília" in out
 
 
 # --- main: erros e resiliência ---
@@ -408,19 +418,72 @@ def test_resumo_semanal_sem_credenciais(tmp_path, monkeypatch):
     assert rc == 1
 
 
-def test_resumo_semanal_envia_mensagem(tmp_path, monkeypatch):
-    state = tmp_path / "state.json"
+def _resumo_state(tmp_path):
     ts_hoje = datetime.now(timezone.utc).isoformat()
     s = _make_state({"a"}, total_notificados=1, historico=[
         {"chave": "a", "titulo": "Lote A", "data": "20/09/2026",
          "url": "a", "numero": None, "ano": None, "notificado_em": ts_hoje}
     ])
+    state = tmp_path / "state.json"
     save_state(state, s)
+    return state
+
+
+def test_resumo_semanal_cai_para_texto_sem_grafico(tmp_path, monkeypatch):
+    state = _resumo_state(tmp_path)
     monkeypatch.setattr(checkmod, "STATE_PATH", state)
-    enviados = []
-    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: enviados.append(txt))
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["a"]))
+    monkeypatch.setattr(checkmod, "_gerar_grafico_por_ano", lambda lotes: None)
+    textos, fotos = [], []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: textos.append(txt))
+    monkeypatch.setattr(checkmod, "send_telegram_photo", lambda *a, **k: fotos.append(a))
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
     rc = checkmod.resumo_semanal()
     assert rc == 0
-    assert "Lote A" in enviados[0]
+    assert fotos == []
+    assert "Lote A" in textos[0]
+
+
+def test_resumo_semanal_usa_grafico_quando_disponivel(tmp_path, monkeypatch):
+    state = _resumo_state(tmp_path)
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["a"]))
+    monkeypatch.setattr(checkmod, "_gerar_grafico_por_ano", lambda lotes: b"PNGDATA")
+    fotos = []
+    monkeypatch.setattr(checkmod, "send_telegram_photo",
+                        lambda tok, cid, img, caption=None, **k: fotos.append((img, caption)))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    rc = checkmod.resumo_semanal()
+    assert rc == 0
+    assert fotos and fotos[0][0] == b"PNGDATA"
+    assert "Lote A" in fotos[0][1]
+
+
+def test_resumo_semanal_envia_mesmo_com_scrape_falho(tmp_path, monkeypatch):
+    state = _resumo_state(tmp_path)
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("sem net")))
+    textos = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: textos.append(txt))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    rc = checkmod.resumo_semanal()
+    assert rc == 0
+    assert "Lote A" in textos[0]
+
+
+def test_gerar_grafico_por_ano_retorna_png(tmp_path):
+    import pytest
+    pytest.importorskip("matplotlib")
+    lotes = [{"ano": "2024"}, {"ano": "2024"}, {"ano": "2023"}]
+    png = checkmod._gerar_grafico_por_ano(lotes)
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_gerar_grafico_vazio_retorna_none():
+    assert checkmod._gerar_grafico_por_ano([{"ano": None}]) is None
