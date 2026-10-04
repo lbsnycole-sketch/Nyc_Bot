@@ -218,6 +218,25 @@ def test_heartbeat_nao_enviado_antes_de_30_dias(tmp_path, monkeypatch):
     assert enviados == []
 
 
+def test_heartbeat_nao_repete_apos_enviado(tmp_path, monkeypatch):
+    # ultima_notificacao antiga, mas heartbeat ja foi enviado ha pouco:
+    # nao deve reenviar (o relogio reseta pelo ultimo_heartbeat).
+    state = tmp_path / "state.json"
+    ts_antigo = (datetime.now(timezone.utc) - timedelta(days=20)).isoformat()
+    ts_heartbeat_recente = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    save_state(state, _make_state({"a"}, ultima_notificacao=ts_antigo,
+                                  ultimo_heartbeat=ts_heartbeat_recente))
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["a"]))
+    enviados = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda *a, **k: enviados.append(a))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    checkmod.main()
+    assert enviados == []
+
+
 # --- main: remoção ---
 
 def test_remocao_notificada(tmp_path, monkeypatch):

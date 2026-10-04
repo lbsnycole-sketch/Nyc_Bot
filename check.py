@@ -81,11 +81,17 @@ def _parse_iso(ts):
 
 
 def _needs_heartbeat(state):
-    ref = state.get("ultima_notificacao") or state.get("ultimo_heartbeat")
-    dt = _parse_iso(ref)
-    if not dt:
+    # Usa o mais recente entre a ultima notificacao e o ultimo heartbeat:
+    # assim, enviar um heartbeat reinicia a janela de _HEARTBEAT_DAYS.
+    candidatos = [
+        _parse_iso(state.get("ultima_notificacao")),
+        _parse_iso(state.get("ultimo_heartbeat")),
+    ]
+    candidatos = [dt for dt in candidatos if dt]
+    if not candidatos:
         return False
-    return (datetime.now(timezone.utc) - dt).days >= _HEARTBEAT_DAYS
+    ref = max(candidatos)
+    return (datetime.now(timezone.utc) - ref).days >= _HEARTBEAT_DAYS
 
 
 def main():
