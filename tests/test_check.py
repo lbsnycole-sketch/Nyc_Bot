@@ -237,6 +237,151 @@ def test_heartbeat_nao_repete_apos_enviado(tmp_path, monkeypatch):
     assert enviados == []
 
 
+# --- main: resiliência contra cegueira ---
+
+def test_pagina_vazia_e_suspeita_nao_altera_estado_nem_heartbeat(tmp_path, monkeypatch):
+    state = tmp_path / "state.json"
+    ts_antigo = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    save_state(state, _make_state({"a", "b", "c", "d"}, ultima_notificacao=ts_antigo))
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes", lambda h: [])
+    enviados = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda *a, **k: enviados.append(a))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    checkmod.main()
+    s = checkmod.load_state(state)
+    assert enviados == []  # nao mente "Bot ativo"
+    assert set(s["chaves"]) == {"a", "b", "c", "d"}
+    assert s["falhas_consecutivas"] == 1
+
+
+def test_pagina_encolhida_e_suspeita(tmp_path, monkeypatch):
+    state = tmp_path / "state.json"
+    save_state(state, _make_state({"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}))
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["a", "b"]))
+    enviados = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda *a, **k: enviados.append(a))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    checkmod.main()
+    s = checkmod.load_state(state)
+    assert enviados == []
+    assert s["falhas_consecutivas"] == 1
+    assert len(s["chaves"]) == 10
+
+
+def test_alerta_enviado_uma_vez_apos_limite(tmp_path, monkeypatch):
+    state = tmp_path / "state.json"
+    save_state(state, _make_state({"a", "b", "c", "d"}, falhas_consecutivas=2))
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes", lambda h: [])
+    enviados = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: enviados.append(txt))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    # 3a falha consecutiva -> alerta
+    checkmod.main()
+    assert len(enviados) == 1
+    assert "⚠️" in enviados[0]
+    s = checkmod.load_state(state)
+    assert s["falhas_consecutivas"] == 3
+    assert s["alerta_pagina_enviado"] is True
+    # 4a falha -> NAO repete o alerta
+    checkmod.main()
+    assert len(enviados) == 1
+    assert checkmod.load_state(state)["falhas_consecutivas"] == 4
+
+
+def test_recuperacao_apos_alerta(tmp_path, monkeypatch):
+    state = tmp_path / "state.json"
+    save_state(state, _make_state({"a", "b", "c", "d"}, falhas_consecutivas=5,
+                                  alerta_pagina_enviado=True))
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["a", "b", "c", "d"]))
+    enviados = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: enviados.append(txt))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    checkmod.main()
+    s = checkmod.load_state(state)
+    assert any("normaliz" in m.lower() for m in enviados)
+    assert s["falhas_consecutivas"] == 0
+    assert s["alerta_pagina_enviado"] is False
+    assert s["ultima_checagem_ok"] is not None
+
+
+def test_troca_em_massa_alerta_sem_spam(tmp_path, monkeypatch):
+    state = tmp_path / "state.json"
+    save_state(state, _make_state({"a", "b", "c", "d"}))
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["w", "x", "y", "z"]))
+    enviados = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: enviados.append(txt))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    checkmod.main()
+    s = checkmod.load_state(state)
+    assert len(enviados) == 1  # um alerta, nao 8 mensagens
+    assert "⚠️" in enviados[0]
+    assert set(s["chaves"]) == {"a", "b", "c", "d"}  # nao marca os novos como vistos
+
+
+def test_lote_em_massa_legitimo_notifica_normal(tmp_path, monkeypatch):
+    # muitos novos, zero removidos -> nao e troca de formato, notifica normal
+    state = tmp_path / "state.json"
+    save_state(state, _make_state({"a", "b", "c", "d"}))
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes",
+                        lambda h: _fake_lotes(["a", "b", "c", "d", "e", "f", "g"]))
+    enviados = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: enviados.append(txt))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    checkmod.main()
+    s = checkmod.load_state(state)
+    assert len(enviados) == 3  # e, f, g
+    assert set(s["chaves"]) == {"a", "b", "c", "d", "e", "f", "g"}
+
+
+def test_heartbeat_mostra_ultima_checagem_ok(tmp_path, monkeypatch):
+    state = tmp_path / "state.json"
+    ts_antigo = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    ts_checagem = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    save_state(state, _make_state({"a"}, ultima_notificacao=ts_antigo,
+                                  ultima_checagem_ok=ts_checagem))
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["a"]))
+    enviados = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: enviados.append(txt))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    checkmod.main()
+    assert len(enviados) == 1
+    assert "checagem" in enviados[0].lower()
+
+
+def test_scrape_confiavel_atualiza_ultima_checagem_ok(tmp_path, monkeypatch):
+    state = tmp_path / "state.json"
+    save_state(state, _make_state({"a"}))
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["a"]))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    checkmod.main()
+    s = checkmod.load_state(state)
+    assert s["ultima_checagem_ok"] is not None
+
+
 # --- main: remoção ---
 
 def test_remocao_notificada(tmp_path, monkeypatch):

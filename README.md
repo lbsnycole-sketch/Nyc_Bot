@@ -52,6 +52,24 @@ python3 -m venv .venv
 TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=@canal .venv/bin/python check.py
 ```
 
+## Resiliência (contra "bot cego")
+
+O bot se protege de falhar em silêncio quando a página oficial muda ou sai do ar:
+
+- **Leitura suspeita:** se a raspagem vier vazia ou com menos da metade dos lotes
+  conhecidos, o estado **não** é alterado e **nenhum** heartbeat "tudo certo" é
+  enviado (para não dar falsa segurança). Após 3 checagens suspeitas seguidas, o
+  canal recebe **um** alerta "⚠️ a página pode ter mudado".
+- **Troca em massa:** se muitos lotes "somem" e muitos "surgem" ao mesmo tempo
+  (sinal de mudança no formato dos links, não de lotes novos), o bot manda **um**
+  alerta em vez de dezenas de mensagens, e não marca nada como visto.
+- **Heartbeat honesto:** a mensagem "Bot ativo" mostra a data da **última checagem
+  bem-sucedida**, então um silêncio prolongado fica visível.
+- **Keep-alive:** o heartbeat grava `ultimo_heartbeat` e gera um commit a cada 7
+  dias. Isso é proposital: o GitHub desabilita workflows agendados após 60 dias
+  **sem commits** no repositório — o heartbeat mantém o cron vivo nas secas de
+  lotes. Não remova esse comportamento.
+
 ## Ajustar a frequência
 No arquivo `.github/workflows/check.yml`, mude a linha `cron`. Ex.: `"0 */6 * * *"`
 = a cada 6 horas. (Horário em UTC; o cron do GitHub pode atrasar alguns minutos.)

@@ -26,12 +26,31 @@ def format_lote_message(lote, total_notificados=None, ultima_notificacao_data=No
     return "\n".join(lines)
 
 
-def format_heartbeat_message(ultima_notificacao_data, total_notificados):
+def format_heartbeat_message(ultima_notificacao_data, total_notificados, ultima_checagem=None):
     data = _esc(ultima_notificacao_data) if ultima_notificacao_data else "—"
+    linhas = [
+        "✅ <b>Bot ativo — Lei do Bem</b>",
+        "Sem novos lotes nos últimos 7 dias.",
+    ]
+    if ultima_checagem:
+        linhas.append(f"Última checagem OK: {_esc(ultima_checagem)}")
+    linhas.append(f"Última notificação: {data} · Total: {total_notificados} lotes")
+    return "\n".join(linhas)
+
+
+def format_alerta_pagina(detalhe):
     return (
-        f"✅ <b>Bot ativo — Lei do Bem</b>\n"
-        f"Sem novos lotes nos últimos 7 dias.\n"
-        f"Última notificação: {data} · Total: {total_notificados} lotes"
+        f"⚠️ <b>Página da Lei do Bem pode ter mudado</b>\n"
+        f"O bot pode estar cego — a leitura da página saiu do esperado.\n"
+        f"{_esc(detalhe)}\n"
+        f"<i>Vale conferir a página oficial manualmente.</i>"
+    )
+
+
+def format_pagina_normalizada():
+    return (
+        f"✅ <b>Monitoramento normalizado</b>\n"
+        f"A leitura da página da Lei do Bem voltou ao normal."
     )
 
 

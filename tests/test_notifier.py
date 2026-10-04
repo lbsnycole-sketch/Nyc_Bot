@@ -5,6 +5,8 @@ from notifier import (
     format_heartbeat_message,
     format_remocao_message,
     format_resumo_semanal,
+    format_alerta_pagina,
+    format_pagina_normalizada,
     send_telegram,
 )
 
@@ -55,6 +57,24 @@ def test_heartbeat_inclui_data_e_total():
 def test_heartbeat_sem_data():
     msg = format_heartbeat_message(None, 0)
     assert "—" in msg
+
+
+def test_heartbeat_mostra_ultima_checagem():
+    msg = format_heartbeat_message("15/08/2026", 5, ultima_checagem="04/10/2026 12:00 UTC")
+    assert "04/10/2026 12:00 UTC" in msg
+    assert "checagem" in msg.lower()
+
+
+def test_alerta_pagina_inclui_aviso_e_detalhe():
+    msg = format_alerta_pagina("Só 0 lote(s) lido(s).")
+    assert "⚠️" in msg
+    assert "Só 0 lote(s) lido(s)." in msg
+    assert "cego" in msg.lower() or "mudou" in msg.lower()
+
+
+def test_pagina_normalizada():
+    msg = format_pagina_normalizada()
+    assert "normaliz" in msg.lower()
 
 
 def test_remocao_inclui_titulo():
