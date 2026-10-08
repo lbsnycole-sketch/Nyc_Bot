@@ -2,6 +2,7 @@
   "chaves": [
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2022/publicacao-16-lote-parecer-contestacao-2022.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2022/publicacao-7-lote-recurso-adm-2022.pdf",
+    "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2022/publicacao-8-lote-recurso-adm-2022.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2023/publicacao-1-lote-recurso-adm-2023.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2023/publicacao-2-lote-recurso-adm-2023.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-10-lote-parecer-tecnico-2024.pdf",
@@ -11,6 +12,7 @@
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-14-lote-parecer-tecnico-2024.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-15-lote-parecer-tecnico-2024.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-16-lote-parecer-tecnico-2024.pdf",
+    "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-17-lote-parecer-tecnico-2024.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-1o-lote-parecer-tecnico-2024.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-2-lote-parecer-tecnico-2024.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-3-lote-parecer-tecnico-2024.pdf",
@@ -27,6 +29,7 @@
   "lotes_ativos": [
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2022/publicacao-16-lote-parecer-contestacao-2022.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2022/publicacao-7-lote-recurso-adm-2022.pdf",
+    "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2022/publicacao-8-lote-recurso-adm-2022.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2023/publicacao-1-lote-recurso-adm-2023.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2023/publicacao-2-lote-recurso-adm-2023.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-10-lote-parecer-tecnico-2024.pdf",
@@ -36,6 +39,7 @@
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-14-lote-parecer-tecnico-2024.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-15-lote-parecer-tecnico-2024.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-16-lote-parecer-tecnico-2024.pdf",
+    "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-17-lote-parecer-tecnico-2024.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-1o-lote-parecer-tecnico-2024.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-2-lote-parecer-tecnico-2024.pdf",
     "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-3-lote-parecer-tecnico-2024.pdf",
@@ -76,13 +80,31 @@
       "numero": "16",
       "ano": "2024",
       "notificado_em": "2026-10-05T17:03:48+00:00"
+    },
+    {
+      "chave": "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-17-lote-parecer-tecnico-2024.pdf",
+      "titulo": "17º lote do Parecer Técnico - ANO-BASE 2024",
+      "data": "08/10/2026",
+      "url": "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2024/publicacao-17-lote-parecer-tecnico-2024.pdf",
+      "numero": "17",
+      "ano": "2024",
+      "notificado_em": "2026-10-08T19:06:52+00:00"
+    },
+    {
+      "chave": "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2022/publicacao-8-lote-recurso-adm-2022.pdf",
+      "titulo": "8º lote do Parecer Técnico (recurso administrativo) - ANO-BASE 2022",
+      "data": "08/10/2026",
+      "url": "https://www.gov.br/mcti/pt-br/acompanhe-o-mcti/lei-do-bem/noticias/parecer-tecnico-ano-base-2022/publicacao-8-lote-recurso-adm-2022.pdf",
+      "numero": "8",
+      "ano": "2022",
+      "notificado_em": "2026-10-08T19:06:52+00:00"
     }
   ],
-  "total_notificados": 3,
-  "ultima_notificacao": "2026-10-05T17:03:48+00:00",
-  "ultima_notificacao_data": "05/10/2026",
+  "total_notificados": 5,
+  "ultima_notificacao": "2026-10-08T19:06:52+00:00",
+  "ultima_notificacao_data": "08/10/2026",
   "ultimo_heartbeat": "2026-10-04T10:57:09+00:00",
-  "ultima_checagem_ok": "2026-10-08T18:04:25+00:00",
+  "ultima_checagem_ok": "2026-10-08T19:06:51+00:00",
   "falhas_consecutivas": 0,
   "alerta_pagina_enviado": false
 }
