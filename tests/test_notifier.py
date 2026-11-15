@@ -5,11 +5,9 @@ from notifier import (
     format_lote_message,
     format_heartbeat_message,
     format_remocao_message,
-    format_resumo_semanal,
     format_alerta_pagina,
     format_pagina_normalizada,
     send_telegram,
-    send_telegram_photo,
 )
 
 
@@ -93,23 +91,6 @@ def test_remocao_inclui_titulo():
     assert "removido" in msg.lower()
 
 
-def test_resumo_semanal_com_lotes():
-    lotes = [
-        {"titulo": "Lote A", "data": "10/09/2026"},
-        {"titulo": "Lote B", "data": None},
-    ]
-    msg = format_resumo_semanal(lotes, 7)
-    assert "Lote A" in msg
-    assert "Lote B" in msg
-    assert "7" in msg
-
-
-def test_resumo_semanal_vazio():
-    msg = format_resumo_semanal([], 3)
-    assert "Nenhum lote novo" in msg
-    assert "3" in msg
-
-
 def test_send_telegram_faz_post_correto():
     fake = MagicMock()
     fake.raise_for_status = MagicMock()
@@ -145,27 +126,6 @@ def test_send_telegram_dois_botoes_lado_a_lado():
     assert len(row) == 2
     assert row[0]["text"] == "A"
     assert row[1]["url"] == "https://b.com"
-
-
-def test_send_telegram_photo_faz_post_com_imagem():
-    fake = MagicMock()
-    fake.raise_for_status = MagicMock()
-    with patch("notifier.requests.post", return_value=fake) as p:
-        send_telegram_photo("TOK", "@canal", b"PNGDATA", caption="resumo")
-    url = p.call_args.args[0]
-    assert "botTOK/sendPhoto" in url
-    assert p.call_args.kwargs["data"]["caption"] == "resumo"
-    assert "photo" in p.call_args.kwargs["files"]
-
-
-def test_send_telegram_photo_repete_e_levanta():
-    with patch("notifier.requests.post", side_effect=RuntimeError("boom")), \
-         patch("notifier.time.sleep"):
-        try:
-            send_telegram_photo("TOK", "@canal", b"X", retries=2)
-            assert False, "deveria ter levantado"
-        except RuntimeError:
-            pass
 
 
 def test_send_telegram_repete_e_levanta_no_fim():

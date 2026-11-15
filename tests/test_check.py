@@ -394,7 +394,9 @@ def test_scrape_confiavel_atualiza_ultima_checagem_ok(tmp_path, monkeypatch):
 
 # --- main: remoção ---
 
-def test_remocao_notificada(tmp_path, monkeypatch):
+def test_remocao_transitoria_nao_notifica_na_primeira_ausencia(tmp_path, monkeypatch):
+    # Uma unica leitura confiavel sem o lote "b" NAO pode disparar remocao:
+    # o gov.br as vezes renderiza uma linha a menos. Aguarda confirmacao.
     state = tmp_path / "state.json"
     save_state(state, _make_state({"a", "b"}))
     monkeypatch.setattr(checkmod, "STATE_PATH", state)
@@ -405,85 +407,57 @@ def test_remocao_notificada(tmp_path, monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
     checkmod.main()
-    assert any("removido" in m.lower() for m in enviados)
+    assert not any("removido" in m.lower() for m in enviados)
+    s = checkmod.load_state(state)
+    assert "b" in s["lotes_ativos"]            # mantido, aguardando confirmacao
+    assert s["remocoes_pendentes"].get("b") == 1
 
 
-# --- resumo semanal ---
-
-def test_resumo_semanal_sem_credenciais(tmp_path, monkeypatch):
-    monkeypatch.setattr(checkmod, "STATE_PATH", tmp_path / "state.json")
-    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
-    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
-    rc = checkmod.resumo_semanal()
-    assert rc == 1
-
-
-def _resumo_state(tmp_path):
-    ts_hoje = datetime.now(timezone.utc).isoformat()
-    s = _make_state({"a"}, total_notificados=1, historico=[
-        {"chave": "a", "titulo": "Lote A", "data": "20/09/2026",
-         "url": "a", "numero": None, "ano": None, "notificado_em": ts_hoje}
-    ])
+def test_lote_reaparece_cancela_remocao_pendente(tmp_path, monkeypatch):
     state = tmp_path / "state.json"
-    save_state(state, s)
-    return state
+    save_state(state, _make_state({"a", "b"}, remocoes_pendentes={"b": 1}))
+    monkeypatch.setattr(checkmod, "STATE_PATH", state)
+    monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
+    monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["a", "b"]))
+    enviados = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: enviados.append(txt))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
+    checkmod.main()
+    assert not any("removido" in m.lower() for m in enviados)
+    assert checkmod.load_state(state)["remocoes_pendentes"] == {}
 
 
-def test_resumo_semanal_cai_para_texto_sem_grafico(tmp_path, monkeypatch):
-    state = _resumo_state(tmp_path)
+def test_remocao_notificada_apos_confirmacao(tmp_path, monkeypatch):
+    # Lote ausente pela 2a leitura seguida -> remocao confirmada e notificada.
+    state = tmp_path / "state.json"
+    save_state(state, _make_state({"a", "b"}, remocoes_pendentes={"b": 1}))
     monkeypatch.setattr(checkmod, "STATE_PATH", state)
     monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
     monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["a"]))
-    monkeypatch.setattr(checkmod, "_gerar_grafico_por_ano", lambda lotes: None)
-    textos, fotos = [], []
-    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: textos.append(txt))
-    monkeypatch.setattr(checkmod, "send_telegram_photo", lambda *a, **k: fotos.append(a))
+    enviados = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: enviados.append(txt))
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
-    rc = checkmod.resumo_semanal()
-    assert rc == 0
-    assert fotos == []
-    assert "Lote A" in textos[0]
+    checkmod.main()
+    assert any("removido" in m.lower() for m in enviados)
+    s = checkmod.load_state(state)
+    assert "b" not in s["lotes_ativos"]
+    assert "b" not in s["remocoes_pendentes"]
 
 
-def test_resumo_semanal_usa_grafico_quando_disponivel(tmp_path, monkeypatch):
-    state = _resumo_state(tmp_path)
+def test_remocao_notificada_em_duas_execucoes(tmp_path, monkeypatch):
+    # Integracao: duas leituras seguidas sem "b" -> so a 2a notifica.
+    state = tmp_path / "state.json"
+    save_state(state, _make_state({"a", "b"}))
     monkeypatch.setattr(checkmod, "STATE_PATH", state)
     monkeypatch.setattr(checkmod, "fetch_html", lambda *a, **k: "<html/>")
     monkeypatch.setattr(checkmod, "parse_lotes", lambda h: _fake_lotes(["a"]))
-    monkeypatch.setattr(checkmod, "_gerar_grafico_por_ano", lambda lotes: b"PNGDATA")
-    fotos = []
-    monkeypatch.setattr(checkmod, "send_telegram_photo",
-                        lambda tok, cid, img, caption=None, **k: fotos.append((img, caption)))
+    enviados = []
+    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: enviados.append(txt))
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
-    rc = checkmod.resumo_semanal()
-    assert rc == 0
-    assert fotos and fotos[0][0] == b"PNGDATA"
-    assert "Lote A" in fotos[0][1]
-
-
-def test_resumo_semanal_envia_mesmo_com_scrape_falho(tmp_path, monkeypatch):
-    state = _resumo_state(tmp_path)
-    monkeypatch.setattr(checkmod, "STATE_PATH", state)
-    monkeypatch.setattr(checkmod, "fetch_html",
-                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("sem net")))
-    textos = []
-    monkeypatch.setattr(checkmod, "send_telegram", lambda tok, cid, txt, **k: textos.append(txt))
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "@c")
-    rc = checkmod.resumo_semanal()
-    assert rc == 0
-    assert "Lote A" in textos[0]
-
-
-def test_gerar_grafico_por_ano_retorna_png(tmp_path):
-    import pytest
-    pytest.importorskip("matplotlib")
-    lotes = [{"ano": "2024"}, {"ano": "2024"}, {"ano": "2023"}]
-    png = checkmod._gerar_grafico_por_ano(lotes)
-    assert png[:8] == b"\x89PNG\r\n\x1a\n"
-
-
-def test_gerar_grafico_vazio_retorna_none():
-    assert checkmod._gerar_grafico_por_ano([{"ano": None}]) is None
+    checkmod.main()
+    assert not any("removido" in m.lower() for m in enviados)
+    checkmod.main()
+    assert any("removido" in m.lower() for m in enviados)

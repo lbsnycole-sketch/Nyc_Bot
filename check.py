@@ -1,19 +1,16 @@
-import io
 import json
 import os
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from scraper import fetch_html, parse_lotes, LOTES_URL
 from notifier import (
     send_telegram,
-    send_telegram_photo,
     format_lote_message,
     format_heartbeat_message,
     format_remocao_message,
-    format_resumo_semanal,
     format_alerta_pagina,
     format_pagina_normalizada,
 )
@@ -22,9 +19,9 @@ _TZ_BR = ZoneInfo("America/Sao_Paulo")
 
 STATE_PATH = Path(__file__).parent / "state.json"
 _HEARTBEAT_DAYS = 7
-_SEMANAL_DAYS = 7
 _MAX_FALHAS = 3          # checagens suspeitas seguidas antes de alertar
 _FRACAO_MINIMA = 0.5     # leitura confiavel = ao menos metade dos lotes conhecidos
+_CONFIRMACOES_REMOCAO = 2  # leituras confiaveis seguidas sem o lote antes de avisar remocao
 
 
 def _now_iso():
@@ -43,6 +40,7 @@ def _default_state():
         "ultima_checagem_ok": None,
         "falhas_consecutivas": 0,
         "alerta_pagina_enviado": False,
+        "remocoes_pendentes": {},
     }
 
 
@@ -64,6 +62,9 @@ def load_state(path):
     state["ultima_checagem_ok"] = data.get("ultima_checagem_ok")
     state["falhas_consecutivas"] = int(data.get("falhas_consecutivas", 0))
     state["alerta_pagina_enviado"] = bool(data.get("alerta_pagina_enviado", False))
+    state["remocoes_pendentes"] = {
+        str(k): int(v) for k, v in dict(data.get("remocoes_pendentes", {})).items()
+    }
     return state
 
 
@@ -85,6 +86,23 @@ def find_removed(lotes_ativos_prev, current_chaves):
     return [c for c in lotes_ativos_prev if c not in current]
 
 
+def _confirmar_remocoes(ausentes, current_chaves, pendentes):
+    # Debounce: um lote so e dado como removido apos sumir em
+    # _CONFIRMACOES_REMOCAO leituras confiaveis SEGUIDAS. Uma unica leitura
+    # com uma linha a menos (comum no gov.br) nao basta. Reaparecer zera.
+    pend = dict(pendentes)
+    for chave in list(pend):
+        if chave in current_chaves:
+            del pend[chave]  # reapareceu antes de confirmar
+    confirmados = []
+    for chave in ausentes:
+        pend[chave] = pend.get(chave, 0) + 1
+        if pend[chave] >= _CONFIRMACOES_REMOCAO:
+            confirmados.append(chave)
+            del pend[chave]
+    return confirmados, pend
+
+
 def _parse_iso(ts):
     if not ts:
         return None
@@ -101,41 +119,6 @@ def _fmt_data_hora(iso):
         return "—"
     return dt.astimezone(_TZ_BR).strftime("%d/%m/%Y %H:%M") + " (horário de Brasília)"
 
-
-def _gerar_grafico_por_ano(lotes):
-    # Barras "lotes por ano-base". matplotlib e importado aqui (lazy) para o job
-    # horario nao precisar da dependencia; ela so e instalada no job semanal.
-    from collections import Counter
-
-    contagem = Counter(l["ano"] for l in lotes if l.get("ano"))
-    if not contagem:
-        return None
-
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    azul = "#00338D"
-    anos = sorted(contagem)
-    valores = [contagem[a] for a in anos]
-    fig, ax = plt.subplots(figsize=(6.4, 3.4), dpi=150)
-    barras = ax.bar(anos, valores, color=azul, width=0.6)
-    ax.set_title("Lotes por ano-base — Lei do Bem",
-                 fontsize=13, fontweight="bold", color="#1a1a1a", pad=12)
-    ax.tick_params(axis="x", labelsize=10, colors="#555", length=0)
-    ax.set_yticks([])
-    for lado in ("top", "right", "left"):
-        ax.spines[lado].set_visible(False)
-    ax.spines["bottom"].set_color("#cccccc")
-    ax.margins(y=0.18)
-    for b, v in zip(barras, valores):
-        ax.text(b.get_x() + b.get_width() / 2, v, str(v),
-                ha="center", va="bottom", fontsize=10, fontweight="bold", color=azul)
-    fig.tight_layout()
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", facecolor="white")
-    plt.close(fig)
-    return buf.getvalue()
 
 
 def _scrape_confiavel(lotes, state):
@@ -220,15 +203,15 @@ def main():
 
     current_chaves = {l["chave"] for l in lotes}
     novos = find_new(lotes, state["chaves"])
-    removed = find_removed(state["lotes_ativos"], current_chaves)
+    ausentes = find_removed(state["lotes_ativos"], current_chaves)
 
-    # Troca em massa (muitos removidos E muitos novos juntos): provavel mudanca de
+    # Troca em massa (muitos ausentes E muitos novos juntos): provavel mudanca de
     # formato das URLs. Alerta uma vez, sem spam, e NAO marca os novos como vistos.
-    if _troca_em_massa(novos, removed, state):
+    if _troca_em_massa(novos, ausentes, state):
         if not state["alerta_pagina_enviado"] and token and chat_id:
             try:
                 detalhe = (
-                    f"{len(novos)} novo(s) e {len(removed)} removido(s) de uma vez — "
+                    f"{len(novos)} novo(s) e {len(ausentes)} removido(s) de uma vez — "
                     f"possível mudança no formato dos links."
                 )
                 send_telegram(token, chat_id, format_alerta_pagina(detalhe))
@@ -237,7 +220,7 @@ def main():
             except Exception as e:  # noqa: BLE001
                 print(f"[warn] falha ao enviar alerta de troca em massa: {e}")
         save_state(STATE_PATH, state)
-        print(f"[alerta] troca em massa ({len(novos)} novos / {len(removed)} removidos).")
+        print(f"[alerta] troca em massa ({len(novos)} novos / {len(ausentes)} ausentes).")
         return 0
 
     # Leitura confiavel e sem churn anormal: registra checagem OK e normaliza.
@@ -245,6 +228,16 @@ def main():
     state["falhas_consecutivas"] = 0
     state["alerta_pagina_enviado"] = False
     state["ultima_checagem_ok"] = _now_iso()
+
+    # Debounce de remocao: so confirma quem some em leituras seguidas. Os ainda
+    # pendentes continuam em lotes_ativos (acreditamos que estao la), para o
+    # reaparecimento nao virar "lote novo" nem o sumico virar alarme falso.
+    removed, pendentes = _confirmar_remocoes(
+        ausentes, current_chaves, state["remocoes_pendentes"]
+    )
+    state["remocoes_pendentes"] = pendentes
+    lotes_ativos_novos = sorted(current_chaves | set(pendentes))
+
     heartbeat = _needs_heartbeat(state) and not novos
 
     if recuperou and token and chat_id:
@@ -255,7 +248,7 @@ def main():
             print(f"[warn] falha ao notificar normalizacao: {e}")
 
     if not novos and not removed and not heartbeat:
-        state["lotes_ativos"] = sorted(current_chaves)
+        state["lotes_ativos"] = lotes_ativos_novos
         save_state(STATE_PATH, state)
         print("[ok] nenhum lote novo.")
         return 0
@@ -325,48 +318,11 @@ def main():
         except Exception as e:  # noqa: BLE001
             print(f"[warn] falha ao enviar heartbeat: {e}")
 
-    state["lotes_ativos"] = sorted(current_chaves)
+    state["lotes_ativos"] = lotes_ativos_novos
     save_state(STATE_PATH, state)
     print(f"[ok] {len(novos)} novo(s); {len(removed)} removido(s); {falhas} falha(s).")
     return 1 if falhas else 0
 
 
-def resumo_semanal():
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    if not token or not chat_id:
-        print("[erro] credenciais ausentes.")
-        return 1
-
-    state = load_state(STATE_PATH)
-    corte = datetime.now(timezone.utc) - timedelta(days=_SEMANAL_DAYS)
-    lotes_semana = [
-        h for h in state["historico"]
-        if (dt := _parse_iso(h.get("notificado_em"))) and dt >= corte
-    ]
-    caption = format_resumo_semanal(lotes_semana, state["total_notificados"])
-
-    # Gráfico "lotes por ano-base" a partir da lista atual da página.
-    grafico = None
-    try:
-        grafico = _gerar_grafico_por_ano(parse_lotes(fetch_html()))
-    except Exception as e:  # noqa: BLE001
-        print(f"[warn] falha ao gerar grafico; enviando so texto: {e}")
-
-    try:
-        if grafico:
-            send_telegram_photo(token, chat_id, grafico, caption=caption)
-            print(f"[resumo] enviado com grafico ({len(lotes_semana)} lote(s) da semana).")
-        else:
-            send_telegram(token, chat_id, caption)
-            print(f"[resumo] enviado em texto ({len(lotes_semana)} lote(s) da semana).")
-    except Exception as e:  # noqa: BLE001
-        print(f"[erro] falha ao enviar resumo: {e}")
-        return 1
-    return 0
-
-
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--resumo-semanal":
-        sys.exit(resumo_semanal())
     sys.exit(main())

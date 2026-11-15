@@ -3,7 +3,6 @@ import time
 import requests
 
 _API = "https://api.telegram.org/bot{token}/sendMessage"
-_API_PHOTO = "https://api.telegram.org/bot{token}/sendPhoto"
 
 # Identidade do produto (marca neutra; trocar aqui se quiser outra assinatura).
 PRODUTO = "Monitor Lei do Bem"
@@ -11,7 +10,6 @@ PRODUTO = "Monitor Lei do Bem"
 _ICON_LOTE = "📄"
 _ICON_OK = "✅"
 _ICON_ALERTA = "⚠️"
-_ICON_RESUMO = "📋"
 
 
 def _esc(text):
@@ -103,27 +101,6 @@ def format_pagina_normalizada():
     ])
 
 
-def format_resumo_semanal(lotes_semana, total_notificados):
-    if not lotes_semana:
-        corpo = "Nenhum lote novo esta semana."
-    else:
-        n = len(lotes_semana)
-        plural = "s" if n > 1 else ""
-        items = "\n".join(
-            f"• <b>{_esc(l['titulo'])}</b>"
-            + (f" ({_esc(l['data'])})" if l.get("data") else "")
-            for l in lotes_semana
-        )
-        corpo = f"{n} lote{plural} novo{plural} esta semana:\n{items}"
-    return "\n".join([
-        f"{_ICON_RESUMO} <b>Resumo semanal — Lei do Bem</b>",
-        "",
-        corpo,
-        "",
-        _assinatura(total_notificados),
-    ])
-
-
 def _keyboard(buttons):
     return json.dumps(
         {"inline_keyboard": [[{"text": label, "url": href} for label, href in buttons]]}
@@ -153,26 +130,6 @@ def send_telegram(token, chat_id, text, url_button=None, buttons=None, retries=3
     for attempt in range(retries):
         try:
             resp = requests.post(url, data=payload, timeout=30)
-            resp.raise_for_status()
-            return
-        except Exception as e:  # noqa: BLE001
-            last_err = e
-            time.sleep(2 * (attempt + 1))
-    raise last_err
-
-
-def send_telegram_photo(token, chat_id, image, caption=None, buttons=None, retries=3):
-    url = _API_PHOTO.format(token=token)
-    data = {"chat_id": chat_id, "parse_mode": "HTML"}
-    if caption:
-        data["caption"] = caption
-    if buttons:
-        data["reply_markup"] = _keyboard(buttons)
-    last_err = None
-    for attempt in range(retries):
-        try:
-            files = {"photo": ("grafico.png", image, "image/png")}
-            resp = requests.post(url, data=data, files=files, timeout=60)
             resp.raise_for_status()
             return
         except Exception as e:  # noqa: BLE001

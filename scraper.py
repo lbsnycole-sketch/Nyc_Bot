@@ -9,6 +9,18 @@ _DATE_RE = re.compile(r"\b(\d{2}/\d{2}/\d{4})\b")
 _NUM_RE = re.compile(r"(\d+)\s*[º°]\s*lote\b", re.I)
 _ANO_RE = re.compile(r"\b(20\d{2})\b")
 _TIPO_RE = re.compile(r"lote\s+d[eo]\s+(.+?)\s*[-–—]\s*ano[\s-]?base", re.I)
+_DOWNLOAD_RE = re.compile(r"/@@download/file/?$", re.I)
+
+
+def _normalizar_url(url):
+    # O gov.br (Plone) serve o mesmo PDF sob formas variaveis (com/sem
+    # /@@download/file, barra final, query). A chave tem que colapsar para
+    # uma identidade estavel, senao o mesmo lote vira "removido" + "novo".
+    if not url:
+        return url
+    u = url.split("#", 1)[0].split("?", 1)[0]
+    u = _DOWNLOAD_RE.sub("", u)
+    return u.rstrip("/")
 
 
 def fetch_html(url=LOTES_URL, timeout=30):
@@ -36,7 +48,7 @@ def parse_lotes(html):
         data = m.group(1) if m else None
         a = tr.find("a", href=True)
         url = a["href"] if a else None
-        chave = url or f"{titulo}|{data}"
+        chave = _normalizar_url(url) or f"{titulo}|{data}"
         m_num = _NUM_RE.search(titulo)
         numero = m_num.group(1) if m_num else None
         m_ano = _ANO_RE.search(titulo)

@@ -60,6 +60,30 @@ def test_tipo_none_quando_formato_desconhecido():
     assert lotes and lotes[0]["tipo"] is None
 
 
+def test_chave_normaliza_sufixo_download_do_plone():
+    # O gov.br (Plone) serve o mesmo PDF com e sem /@@download/file.
+    # A chave precisa colapsar para a mesma identidade, senao o lote
+    # "muda de identidade" e aparece como removido + novo.
+    html = (
+        '<table><tr><td>1º lote do Parecer Técnico - ANO-BASE 2024</td>'
+        '<td><a href="https://x/publicacao-1-lote-parecer-tecnico-2024.pdf/@@download/file">pdf</a></td>'
+        '</tr></table>'
+    )
+    lote = parse_lotes(html)[0]
+    assert lote["chave"] == "https://x/publicacao-1-lote-parecer-tecnico-2024.pdf"
+    assert "@@download" not in lote["chave"]
+
+
+def test_chave_normaliza_barra_final_e_query():
+    html = (
+        '<table><tr><td>2º lote do Parecer Técnico - ANO-BASE 2024</td>'
+        '<td><a href="https://x/publicacao-2-lote-parecer-tecnico-2024.pdf/?t=1">pdf</a></td>'
+        '</tr></table>'
+    )
+    lote = parse_lotes(html)[0]
+    assert lote["chave"] == "https://x/publicacao-2-lote-parecer-tecnico-2024.pdf"
+
+
 def test_fetch_html_usa_get_e_devolve_texto():
     fake = MagicMock()
     fake.text = "<html>ok</html>"
