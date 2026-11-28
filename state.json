@@ -300,7 +300,7 @@
   "ultima_notificacao_data": "16/11/2026",
   "ultimo_heartbeat": "2026-11-24T11:44:55+00:00",
   "ultima_checagem_ok": "2026-11-27T09:13:58+00:00",
-  "falhas_consecutivas": 3,
+  "falhas_consecutivas": 4,
   "alerta_pagina_enviado": true,
   "remocoes_pendentes": {}
 }
